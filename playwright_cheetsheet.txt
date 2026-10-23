@@ -1,0 +1,361 @@
+PLAYWRIGHT COMPLETE CHEAT SHEET (UI + API + MOCKING + INTERCEPTION)
+====================================================================
+
+
+1. SETUP AND NAVIGATION
+-----------------------
+import { test, expect } from '@playwright/test'
+
+test.beforeEach(async ({ page }) => {
+  await page.goto('/')                       // needs baseURL in playwright.config.ts
+  await page.locator('.mb-8').getByText('Section name').click()
+})
+
+test('name', async ({ page }) => { })
+
+Always await every Playwright action. A missing await causes "Test ended" errors.
+
+
+2. LOCATORS
+-----------
+page.locator('#id')                          // id
+page.locator('.class')                       // class
+page.getByRole('button', { name: 'Login' })  // role + name
+page.getByText('text')                       // by text
+page.getByTestId('auth-error')               // data-testid
+parent.locator('ul li')                      // inside a parent
+items.first()  items.last()  items.nth(2)    // pick one from many
+
+A Locator is a recipe, not a saved element. It re-finds the element on every action.
+
+
+3. ACTIONS
+----------
+await locator.fill('text')
+await locator.click()
+await locator.scrollIntoViewIfNeeded()
+await page.keyboard.press('Enter')
+
+
+4. FILE UPLOAD
+--------------
+await page.setInputFiles('[type="file"]', 'testdata/lion.jpg')     // relative path
+await page.setInputFiles('[type="file"]', 'C:/Users/Me/lion.jpg')   // absolute path
+
+- Windows paths: use /, \\, String.raw, or path.join(__dirname, 'testdata', 'lion.jpg').
+  A single \l loses the backslash.
+- Relative paths resolve from where you run the command, not from the test file.
+- Button that opens a file dialog:
+
+const [chooser] = await Promise.all([
+  page.waitForEvent('filechooser'),
+  page.getByRole('button', { name: 'Upload' }).click(),
+])
+await chooser.setFiles('testdata/lion.jpg')
+
+- Assertions:
+await expect(input).toHaveValue(/lion\.jpg/)
+await expect(page.getByText('lion.jpg')).toBeVisible()
+
+
+5. ASSERTIONS (retry automatically, default 5s)
+-----------------------------------------------
+await expect(loc).toBeVisible()
+await expect(loc).toBeHidden()
+await expect(loc).toHaveText('exact')          // full exact match
+await expect(loc).toHaveText(/regex/)          // regex
+await expect(loc).toContainText('part')        // partial match
+await expect(loc).toHaveCount(3)
+await expect(loc).toHaveAttribute('class', /active/)
+await expect(loc).toHaveClass(/alert-success/)
+await expect(page).toHaveURL(/dashboard/)
+await expect(loc).toHaveText(['a', 'b', 'c'])  // whole list, order and count
+await expect(loc).not.toHaveText('x')          // negate with .not
+
+toHaveText('Item') fails if the element also contains a "Remove" button
+(text becomes "ItemRemove"). Use toContainText or a regex.
+
+
+6. DATA-DRIVEN TESTING
+----------------------
+const loginData = [
+  { title: 'Valid',   userName: 'admin',    password: 'admin123', isValid: true },
+  { title: 'Invalid', userName: randomName, password: randomPassword, isValid: false },
+]
+
+loginData.forEach(({ title, userName, password, isValid }) => {
+  test(`Login Test ${title}`, async ({ page }) => {
+    await page.locator('#auth-username').fill(userName)
+    await page.locator('#auth-password').fill(password)
+    await page.getByRole('button', { name: 'Login' }).click()
+
+    if (isValid) await expect(page.locator('#auth-dashboard')).toHaveText(/successful/)
+    else         await expect(page.getByTestId('auth-error')).toHaveText(/Invalid/)
+  })
+})
+
+Rules:
+- Put the expected result (isValid) in the data.
+- KEEP TEST TITLES STATIC. Random values in a title cause "Test not found in the
+  worker process" (the spec file is loaded again in every worker, so random titles differ).
+- Generate random values inside the test, or seed the generator, if needed.
+- Every field you use must be in the destructuring ({ title, ... }), or you get a ReferenceError.
+- Remove stray auto-imports such as: import { title } from 'node:process'
+
+
+7. DYNAMIC LISTS
+----------------
+const items = section.locator('ul li')
+const before = await items.count()                 // read once
+await page.getByRole('button', { name: 'Add list item' }).click()
+await expect(items).toHaveCount(before + 1)        // retries
+await expect(items.last()).toContainText('New item')
+await items.last().getByRole('button', { name: 'Remove' }).click()
+
+Use toHaveCount instead of count() plus toBe(), because count() doesn't wait.
+
+
+8. STALE ELEMENTS
+-----------------
+- Selenium keeps a reference to one node, so it goes stale when the node is replaced.
+- Playwright locator re-finds the element every time, so there's no stale error.
+- Avoid page.$() / ElementHandle. Use page.locator() and keep the locator.
+
+const before = await target.textContent()
+await replaceButton.click()
+await expect(target).not.toHaveText(before!)
+
+
+9. RESIZE BY DRAGGING
+---------------------
+const box = page.locator('#section-29').getByText('Drag my bottom-right corner')  // inner box, not whole card
+await box.scrollIntoViewIfNeeded()
+const before = await box.boundingBox()
+if (before === null) throw new Error('Element not found')
+
+const x = before.x + before.width - 4
+const y = before.y + before.height - 4
+await page.mouse.move(x, y)
+await page.mouse.down()
+await page.mouse.move(x + 100, y + 90, { steps: 15 })   // steps = smooth drag
+await page.mouse.up()
+
+await expect.poll(async () => (await box.boundingBox())?.width).toBeGreaterThan(before.width)
+
+If the size doesn't change at all, the locator is wrong (it measured the card)
+or the corner is off-screen.
+
+
+10. SCROLLING
+-------------
+await locator.scrollIntoViewIfNeeded()                                    // most common
+await page.mouse.wheel(0, 500)                                            // scroll down 500px
+await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight)) // bottom
+await page.locator('#box').evaluate(el => el.scrollTop = el.scrollHeight) // inside a container
+await page.keyboard.press('End')
+
+Playwright auto-scrolls before click and fill.
+
+
+11. PAGE.EVALUATE
+-----------------
+Runs JavaScript inside the browser page.
+
+await page.evaluate(() => window.scrollY)
+await locator.evaluate(el => getComputedStyle(el).width)
+await fileInput.evaluate((el: HTMLInputElement) => el.files?.[0].name)
+await page.evaluate((n) => console.log(n), name)   // pass test variables as an argument
+
+The function runs in the browser and can't see your test variables unless you
+pass them in. (There is no page.elevate; the name is evaluate.)
+
+
+12. API TESTING (the request fixture, no browser needed)
+--------------------------------------------------------
+test('GET user', async ({ request }) => {
+  const res = await request.get('https://reqres.in/api/users/2')
+  expect(res.status()).toBe(200)
+  expect(res.ok()).toBeTruthy()          // true for 200-299
+  await expect(res).toBeOK()             // same check, as an assertion
+  const body = await res.json()
+  expect(body.data.id).toBe(2)
+})
+
+test('POST user', async ({ request }) => {
+  const res = await request.post('/api/users', {
+    data: { name: 'Ravi', job: 'QA' },                 // sent as JSON
+    headers: { Authorization: 'Bearer TOKEN' },
+  })
+  expect(res.status()).toBe(201)
+  const body = await res.json()
+  expect(body).toMatchObject({ name: 'Ravi' })         // partial match
+})
+
+await request.put('/api/users/2',   { data: { name: 'New' } })
+await request.patch('/api/users/2', { data: { job: 'Lead' } })
+await request.delete('/api/users/2')                   // usually 204
+
+- Other body types: form: { a: '1' } (form-urlencoded),
+  multipart: { file: fs.createReadStream('x.jpg') }, query string: params: { page: 2 }.
+- Read the response: res.status(), res.statusText(), res.headers(), await res.json(), await res.text().
+- Shared settings in playwright.config.ts:
+
+use: {
+  baseURL: 'https://your-app.com',
+  extraHTTPHeaders: { Authorization: 'Bearer TOKEN' },
+}
+
+- Use page.request to make API calls that share the browser's cookies and login.
+- Common pattern: create test data through the API, then verify it in the UI.
+
+
+13. API MOCKING (fake the response, page.route)
+-----------------------------------------------
+Set the route BEFORE the action that triggers the request (before goto or the click).
+
+// Return fake JSON
+await page.route('**/api/users', route =>
+  route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify([{ id: 1, name: 'Mock User' }]),
+  })
+)
+await page.goto('/')
+await expect(page.getByText('Mock User')).toBeVisible()
+
+// Shortcut for JSON
+await page.route('**/api/users', route => route.fulfill({ json: [{ id: 1, name: 'Mock User' }] }))
+
+// Mock an error to test the error UI
+await page.route('**/api/users', route => route.fulfill({ status: 500, body: 'Server error' }))
+
+// Empty list
+await page.route('**/api/users', route => route.fulfill({ json: [] }))
+
+// Slow response
+await page.route('**/api/users', async route => {
+  await new Promise(r => setTimeout(r, 3000))
+  await route.fulfill({ json: [] })
+})
+
+URL patterns: '**/api/users' (exact path), '**/api/**' (everything under api),
+/\/api\/users\/\d+/ (regex).
+
+
+14. REQUEST INTERCEPTION (watch, modify, block)
+-----------------------------------------------
+// Block (abort) requests, e.g. images or analytics
+await page.route('**/*.{png,jpg,jpeg}', route => route.abort())
+await page.route('**/analytics/**', route => route.abort())
+
+// Let it through unchanged
+await page.route('**/api/**', route => route.continue())
+
+// Change the outgoing request (headers or body)
+await page.route('**/api/**', route =>
+  route.continue({ headers: { ...route.request().headers(), 'x-test': 'yes' } })
+)
+
+// Real response, but modify it
+await page.route('**/api/users', async route => {
+  const response = await route.fetch()          // real call
+  const json = await response.json()
+  json.push({ id: 99, name: 'Injected' })
+  await route.fulfill({ response, json })
+})
+
+// Inspect what the app sent
+await page.route('**/api/login', async route => {
+  const sent = route.request().postDataJSON()
+  expect(sent.username).toBe('admin')
+  await route.continue()
+})
+
+// Remove a route
+await page.unroute('**/api/users')
+
+// Apply to every page in the context
+await context.route('**/api/**', route => route.continue())
+
+Routes added later run first. Use route.fallback() to pass a request to the next matching route.
+
+
+15. WAITING FOR AND ASSERTING REAL NETWORK CALLS
+------------------------------------------------
+// Click and wait for the response together (start the wait BEFORE the click)
+const [response] = await Promise.all([
+  page.waitForResponse(r => r.url().includes('/api/login') && r.status() === 200),
+  page.getByRole('button', { name: 'Login' }).click(),
+])
+const body = await response.json()
+expect(body.token).toBeTruthy()
+
+// Wait for a request and check what was sent
+const [request] = await Promise.all([
+  page.waitForRequest('**/api/login'),
+  page.getByRole('button', { name: 'Login' }).click(),
+])
+expect(request.method()).toBe('POST')
+expect(request.postDataJSON()).toMatchObject({ username: 'admin' })
+
+// Log all traffic
+page.on('request',  req => console.log('>>', req.method(), req.url()))
+page.on('response', res => console.log('<<', res.status(), res.url()))
+
+// Record and replay with a HAR file
+await page.routeFromHAR('hars/app.har', { url: '**/api/**', update: true })   // record
+await page.routeFromHAR('hars/app.har', { url: '**/api/**' })                 // replay
+
+Rule: register waitForResponse / waitForRequest before the click. If you add it
+after, the response may have already passed and the test times out.
+
+
+16. TIMEOUTS AND WAITING
+------------------------
+Defaults:  expect assertion = 5 s,  whole test = 30 s
+
+await expect(loc).toHaveText('x', { timeout: 10000 })           // one assertion
+await expect.poll(() => value, { timeout: 10000 }).toBe(5)      // retry a plain value
+test.setTimeout(60000)                                          // one test
+// playwright.config.ts: timeout: 60000, expect: { timeout: 10000 }
+
+- An expect timeout means the condition never became true within the time.
+  Read the "Expected" and "Received" lines.
+- toBeGreaterThan(x, { timeout }) is invalid. Plain expect(number) never retries,
+  so use expect.poll.
+- A longer timeout won't fix a wrong locator.
+- Avoid waitForTimeout (fixed sleep). It needs await, and it only helps if placed
+  before the value is read. expect or expect.poll is better.
+
+
+17. DEBUGGING
+-------------
+npx playwright test --headed          # watch the browser
+npx playwright test --debug           # step through
+npx playwright test -g "Resizing"     # run one test by name
+npx playwright show-report            # open the HTML report
+
+await page.screenshot({ path: 'after.png' })
+
+Read the "Expected" and "Received" lines in the error first. Right-click the
+element, choose Inspect, and copy the real selector. For API problems, check the
+Network tab in browser DevTools.
+
+
+18. COMMON MISTAKES CHECKLIST
+-----------------------------
+- Missing await
+- Wrong locator (parent card instead of the inner element)
+- Random data in a test title
+- Field missing from destructuring
+- toHaveText exact match when extra text exists
+- count() instead of toHaveCount
+- Backslashes in file paths
+- goto('') without baseURL
+- Using expect(number) and expecting it to retry
+- Setting page.route after the request already fired
+- Starting waitForResponse after the click instead of before
+- Forgetting route.fulfill / route.continue / route.abort (the request hangs)
+- Shared let variables across tests (can break in parallel runs)
+

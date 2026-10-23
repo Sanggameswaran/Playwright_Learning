@@ -1,0 +1,39 @@
+{
+  "articles": [
+    {
+      "title": "Testing Article-1",
+      "slug": "testing-article-1",
+      "description": "",
+      "body": "",
+      "tagList": [],
+      "createdAt": "2024-01-28T00:00:00.000Z",
+      "updatedAt": "2024-01-28T00:00:00.000Z",
+      "favorited": false,
+      "favoritesCount": 0,
+      "author": {
+        "username": "testuser",
+        "bio": "",
+        "image": "",
+        "following": false
+      }
+    },
+    {
+      "title": "Testing Article-2",
+      "slug": "testing-article-2",
+      "description": "",
+      "body": "",
+      "tagList": [],
+      "createdAt": "2024-01-28T00:00:00.000Z",
+      "updatedAt": "2024-01-28T00:00:00.000Z",
+      "favorited": false,
+      "favoritesCount": 0,
+      "author": {
+        "username": "testuser",
+        "bio": "",
+        "image": "",
+        "following": false
+      }
+    }
+  ],
+  "articlesCount": 2
+}
