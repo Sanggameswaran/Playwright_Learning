@@ -5,6 +5,8 @@ test.beforeEach('Open URL', async ({ page }) => {
 
     await page.route('*/**/api/tags**', async (route) => {
         await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
             body: JSON.stringify(tags)
         })
     })
