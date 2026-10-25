@@ -15,12 +15,13 @@ test('New article', async ({ page, request }) => {
 
     expect(loginResponse.status()).toBe(200)
     console.log(token)
-
+    
+    const title = `New Article ${Date.now()}`
     const cretearticle = await request.post('https://conduit-api.bondaracademy.com/api/articles/', {
         data: {
             "article": {
-                "title": "New Article2",
-                "description": "Testing Article1",
+                "title": title,
+                "description": "Testing Article",
                 "body": "Test Markdown",
                 "tagList": [
                     "no tags"
