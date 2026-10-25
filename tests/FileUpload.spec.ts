@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+import path from 'path'
 
 test.beforeEach('Open URL', async ({ page }) => {
     await page.goto('')
@@ -21,7 +22,7 @@ test('Upload from local', async ({ page }) => {
         page.getByLabel('File upload').click()
     ])
 
-    await fileChooser.setFiles('C:/Users/THINKPAD/Pictures/reference.jfif')
+    await fileChooser.setFiles(path.join(__dirname, '../testdata/reference.jfif'))
     await expect(page.locator('[type="file"]')).toBeAttached()
 
 })

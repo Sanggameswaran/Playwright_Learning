@@ -8,18 +8,18 @@ test.beforeEach('Open_URL', async ({ page }) => {
     parent = page.locator('#section-7')
 })
 
-test('Waits', async({page})=>{
-      const loadSpinner = parent.getByTestId('loaded-message')
-      await loadSpinner.waitFor({state:'visible',timeout:2000})
-      await expect(loadSpinner).toHaveText(/Loaded/)
+test('Waits', async ({ page }) => {
+    const loadSpinner = parent.getByTestId('loaded-message')
+    // await loadSpinner.waitFor({state:'visible',timeout:2000})
+    await expect(loadSpinner).toHaveText(/Loaded/, { timeout: 2000 })
 
-      await page.waitForTimeout(3000)
-      await expect(parent.locator('[data-testid="delayed-text"]')).toBeVisible()
+    // await page.waitForTimeout(3000)
+    await expect(parent.locator('[data-testid="delayed-text"]')).toBeVisible({ timeout: 2000 })
 
-      const ajaxButton = parent.getByRole('button',{name:'AJAX button'})
-      await ajaxButton.click()
-      await page.waitForTimeout(2000)
-      await expect(parent.locator('[data-testid="ajax-result"]')).toBeVisible()
-      
+    const ajaxButton = parent.getByRole('button', { name: 'AJAX button' })
+    await ajaxButton.click()
+    // await page.waitForTimeout(2000)
+    await expect(parent.locator('[data-testid="ajax-result"]')).toBeVisible({ timeout: 2000 })
+
 
 })
