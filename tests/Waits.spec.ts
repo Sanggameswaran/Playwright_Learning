@@ -21,5 +21,4 @@ test('Waits', async ({ page }) => {
     // await page.waitForTimeout(2000)
     await expect(parent.locator('[data-testid="ajax-result"]')).toBeVisible({ timeout: 2000 })
 
-
 })
